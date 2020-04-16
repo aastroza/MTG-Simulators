@@ -162,6 +162,95 @@ class NewSimulator():
 
 		return prizes
 
+class PremierSimulator():
+
+	def __init__(self, winrate):
+
+		self.winrate = winrate
+
+	def play_draft(self):
+
+		record = {'Wins': 0, 'Losses': 0}
+
+		while record['Wins'] < 7 and record['Losses'] < 3:
+			win = np.random.random() < self.winrate
+
+			if win:
+				record['Wins'] += 1
+			else:
+				record['Losses'] += 1
+
+		return record
+
+	def prize_out(self, record, prizes):
+		'''
+		Given a draft record, updates prize dictionary
+
+		Inputs:
+			- record: Dictionary of wins/losses
+			- prizes: Dictionary of historic prize payouts
+		'''
+
+		wins = record['Wins']
+
+		# prize out
+		prizes['Packs'] += 1
+		prizes['Gems'] += 50
+		if wins >= 1:
+			prizes['Gems'] += 50
+		if wins >= 2:
+			prizes['Gems'] += 150
+			prizes['Packs'] += 1
+		if wins >= 3:
+			prizes['Gems'] += 750
+		if wins >= 4:
+			prizes['Gems'] += 400
+			prizes['Packs'] += 1
+		if wins == 5:
+			prizes['Gems'] += 200
+			prizes['Packs'] += 1
+		if wins == 6:
+			prizes['Gems'] += 200
+			prizes['Packs'] += 1
+		if wins == 7:
+			prizes['Gems'] += 400
+			prizes['Packs'] += 1
+
+		# deduct price
+		prizes['Gems'] -= 1500
+
+		# add rounds played
+		prizes['Rounds'] += record['Wins'] + record['Losses']
+
+		return prizes
+
+	def simulate_n_drafts(self, n, winrate=None):
+		'''
+		Plays many drafts to determine average payouts
+
+		Inputs:
+			- n: Number of drafts to simulate
+			- winrate: Allows user to pass custom winrates
+		'''
+
+		# if requested, update winrate
+		if winrate:
+			self.winrate = winrate
+
+		# initiate prize counter
+		prizes = {'Packs': 0, 'Gems': 0, 'Rounds': 0}
+
+		for draft in range(n):
+			record = self.play_draft()
+			prizes = self.prize_out(record, prizes)
+
+		# find average prizes
+		prizes['Packs'] /= n
+		prizes['Gems'] /= n
+		prizes['Rounds'] /= n	
+
+		return prizes
+
 
 def generate_prize_distributions(intervals = 100, simulator_size = 500000):
 	'''
@@ -173,28 +262,28 @@ def generate_prize_distributions(intervals = 100, simulator_size = 500000):
 	'''
 
 	# assign holders
-	labels = ['Winrate', 'Packs-OLD', 'Packs-NEW', 'Gems-OLD', 'Gems-NEW', 'Rounds-OLD']
+	labels = ['Winrate', 'Packs-PRE', 'Packs-TRA', 'Gems-PRE', 'Gems-TRA', 'Rounds-PRE']
 	result_holder = []
 
 	# run simulations at chosen intervals
-	classic_payout = ClassicSimulator(0)
-	new_payout = NewSimulator(0)	
+	premier_payout = PremierSimulator(0)
+	traditional_payout = NewSimulator(0)	
 	winrate = 0
 	interval_size = 1 / intervals
 	for i in range(intervals + 1):
 
 		# run simulations
-		prizes_classic = classic_payout.simulate_n_drafts(simulator_size, winrate=winrate)
-		prizes_new = new_payout.simulate_n_drafts(simulator_size, winrate=winrate)
+		prizes_premier = premier_payout.simulate_n_drafts(simulator_size, winrate=winrate)
+		prizes_traditional = traditional_payout.simulate_n_drafts(simulator_size, winrate=winrate)
 
 		# append results
 		result_holder.append([
 			winrate, 
-			prizes_classic['Packs'], 
-			prizes_new['Packs'], 
-			prizes_classic['Gems'], 
-			prizes_new['Gems'], 
-			prizes_classic['Rounds']
+			prizes_premier['Packs'], 
+			prizes_traditional['Packs'], 
+			prizes_premier['Gems'], 
+			prizes_traditional['Gems'], 
+			prizes_premier['Rounds']
 		])
 
 		# update winrate
@@ -204,8 +293,8 @@ def generate_prize_distributions(intervals = 100, simulator_size = 500000):
 
 	# calculate "effective" payout (using 200 gems per pack as previous sale price)
 	# cards from the draft itself are valued at 600 gems, though this is likely an undercount
-	df['NetGemsOld'] = 600 + (df['Packs-OLD'] * 200) + df['Gems-OLD']
-	df['NetGemsNew'] = 600 + (df['Packs-NEW'] * 200) + df['Gems-NEW']
-	df['Difference'] = df.NetGemsNew - df.NetGemsOld
+	df['NetGemsPRE'] = 600 + (df['Packs-PRE'] * 200) + df['Gems-PRE']
+	df['NetGemsTRA'] = 600 + (df['Packs-TRA'] * 200) + df['Gems-TRA']
+	
 
 	return df	
